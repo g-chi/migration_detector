@@ -9,7 +9,7 @@ How to install it
 `pip install migrantion_detector`
 
 > **_NOTE:_**
-- migrantion_detector has a dependency on [turi/GraphLab](https://turi.com/) to speed up the computation by parallel computing (It only took about 40 minutes to detect migrants using 600 million unique trajectory records.). You need to apply for a [license](https://turi.com/download/academic.html) and [install](https://turi.com/download/install-graphlab-create.html) it before installing migrantion_detector.
+- migrantion_detector has a dependency on [turi/GraphLab](https://turi.com/) to speed up the computation by parallel computing (In our case, it only took about 40 minutes to detect migrants using 600 million unique trajectory records over four years.). You need to apply for a [license](https://turi.com/download/academic.html) and [install](https://turi.com/download/install-graphlab-create.html) it before installing migrantion_detector.
 - It is recommended to create a new Python 2.7 environment to install **GraphLab** and **migrantion_detector**.
 - Other requires: pandas, numpy, matplotlib, and seaborn.
 
