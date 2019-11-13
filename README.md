@@ -30,3 +30,18 @@ traj.plot_migration_segment(migrants[0])
 # save the result of detected migrants
 md.to_csv(migrants, 'migrants_result.csv')
 ```
+
+Format of the input trajectory data
+======
+The input file should contain at least three columns: user_id(`int` or `str`), date(`YYYYMMDD`), location_id(`int` or `str`). The *location* depends on the definition of the migration, such as district, state, or city. Here is an example of trajectory data.
+
+| user_id | date     | location |
+|---------|----------|----------|
+| 1       | 20180701 | 1        |
+| 1       | 20180701 | 2        |
+| 1       | 20180702 | 1        |
+
+
+How to cite it
+======
+TO ADD
