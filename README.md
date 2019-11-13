@@ -5,16 +5,16 @@ migrantion_detector
 <kbd><img src="example/1_90.png" /></kbd>
 
 How to install it
-======
+------
 `pip install migrantion_detector`
 
 > **_NOTE:_**
-- migrantion_detector has a dependency on [turi/GraphLab](https://turi.com/) to speed up the computation by parallel computing. You need to apply for a [license](https://turi.com/download/academic.html) and [install](https://turi.com/download/install-graphlab-create.html) it before installing migrantion_detector.
+- migrantion_detector has a dependency on [turi/GraphLab](https://turi.com/) to speed up the computation by parallel computing (It only took about 40 minutes to detect migrants using 600 million unique trajectory records.). You need to apply for a [license](https://turi.com/download/academic.html) and [install](https://turi.com/download/install-graphlab-create.html) it before installing migrantion_detector.
 - It is recommended to create a new Python 2.7 environment to install **GraphLab** and **migrantion_detector**.
 - Other requires: pandas, numpy, matplotlib, and seaborn.
 
 How to use it
-======
+------
 migrantion_detector is easy to use, just like pandas. First, you need to import your trajectory dataset and then detect the migrants.
 ```
 import migration_detector as md
@@ -32,7 +32,7 @@ md.to_csv(migrants, 'migrants_result.csv')
 ```
 
 Format of the input trajectory data
-======
+------
 The input file should contain at least three columns: user_id(`int` or `str`), date(`YYYYMMDD`), location_id(`int` or `str`). The *location* depends on the definition of the migration, such as district, state, or city. Here is an example of trajectory data.
 
 | user_id | date     | location |
@@ -43,5 +43,5 @@ The input file should contain at least three columns: user_id(`int` or `str`), d
 
 
 How to cite it
-======
+------
 TO ADD
