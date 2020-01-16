@@ -1,5 +1,7 @@
-migrantion_detector
+migration_detector
 ======
+by Guanghua Chi, Fengyang Lin, Guangqing Chi, and Joshua Blumenstock
+
 **migrantion_detector** is a Python toolbox to detect migration events in digital trace data, such as Call Detail Record (CDR), geo-tagged tweets, and other check-in data. It is able to handle a large volume of data (TB) and provides useful functions such as plotting the trajectory of a migrant and export your results.
 
 <kbd><img src="example/1_90.png" /></kbd>
