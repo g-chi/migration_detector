@@ -76,6 +76,88 @@ class TrajRecord():
         self.index2date = index2date
         self.date_num_long = date_num_long
 
+    def plot_trajectory(self, user_id, start_date, end_date=None, if_save=False, fig_path='figure'):
+        start_date_ = int(str(start_date)[:4] + str(start_date)[4:6] + str(start_date)[6:8])
+        start_day = self.date_num_long.filter_by(start_date_, 'date')['date_num'][0]
+        # if not declare end_date, plot half a year's data
+        if end_date:
+            end_date_ = int(str(end_date)[:4] + str(end_date)[4:6] + str(end_date)[6:8])
+            end_day = self.date_num_long.filter_by(end_date_, 'date')['date_num'][0]
+        else:
+            end_day = start_day + 182
+            end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
+        duration = end_day - start_day + 1
+        month_start = pd.date_range(start=start_date, end=end_date, freq='MS')
+
+        daily_record = self.raw_traj.filter_by(user_id, 'user_id').filter_by(
+            range(start_day, end_day + 1), 'date_num'
+        )
+        daily_record['date_count'] = [1] * len(daily_record)
+        appear_loc = list(set(daily_record['location']))
+        appear_loc.sort()
+        date_plot = range(start_day, end_day + 1)
+        date_plot_sort = date_plot * len(appear_loc)
+        date_plot_sort.sort()
+        template_df_plot = gl.SFrame({'location': appear_loc * len(date_plot),
+                                      'date_num': date_plot_sort})
+        heatmap_df_join = template_df_plot.join(
+            daily_record.select_columns(['location', 'date_count', 'date_num']),
+            on=['date_num', 'location'],
+            how='left'
+        )
+        heatmap_df_join = heatmap_df_join.fillna('date_count', 0)
+        heatmap_pivot = heatmap_df_join.to_dataframe().pivot("location", "date_num", "date_count")
+
+        height = len(appear_loc)
+        fig, ax = plt.subplots(dpi=300, figsize=(28./182*duration, height))
+        cmap = sns.cubehelix_palette(dark=0, light=1, as_cmap=True)
+
+        sns.heatmap(heatmap_pivot, cmap=cmap, cbar=False, linewidths=1)
+
+        for xline in np.arange(duration):
+            plt.axvline(xline, color='lightgray', alpha=0.5)
+        for yline in range(len(appear_loc) + 1):
+            plt.axhline(yline, color='lightgray', alpha=0.5)
+
+        location_appear_df = gl.SFrame({'location': appear_loc})
+        location_appear_df = location_appear_df.sort('location')
+        location_appear_df['y_order'] = range(len(appear_loc))
+        location_y_order_loc_appear = (location_appear_df
+                                       .select_columns(['location', 'y_order'])
+                                       .to_dataframe()
+                                       .set_index('location')
+                                       .to_dict(orient='dict')['y_order'])
+
+        plt.ylabel('Location', fontsize=22)
+        plt.xlabel('Date', fontsize=22)
+
+        month_start_2 = [str(d)[:4] + str(d)[5:7] + str(d)[8:10] for d in month_start]
+        month_mid = [str(int(d) + 14) for d in month_start_2]
+
+        month_all_axis = month_start_2 + month_mid
+        month_all_axis.sort()
+        if month_all_axis[-1] > end_date:
+            month_all_axis = month_all_axis[:-1]
+        month_all_axis_trans = [int(d) for d in month_all_axis]
+
+        ori_xaxis_idx = self.date_num_long.filter_by(month_all_axis_trans, 'date')['date_num']
+        ori_xaxis_idx.sort()
+        xaxis_idx = np.array(ori_xaxis_idx) + 0.5 - start_day
+        month_all_axis = [d[:4] + '-' + d[4:6] + '-' + d[6:8] for d in month_all_axis]
+        plt.xticks(xaxis_idx, month_all_axis, fontsize=22, rotation=30)
+        plt.yticks(fontsize=25, rotation='horizontal')
+        plt.tick_params(axis='both', which='both', bottom='on', top='off',
+                        labelbottom='on', right='off', left='off',
+                        labelleft='on')
+        plt.subplots_adjust(left=0.05, bottom=0.2, right=0.97, top=0.95)
+        if not os.path.isdir(fig_path):
+            os.makedirs(fig_path)
+        save_path = os.path.join(fig_path, user_id + '_trajectory')
+        plt.show()
+        if if_save:
+            plt.savefig(save_path, bbox_inches="tight")
+        plt.close()
+
     def find_migrants(self, num_stayed_days_migrant=90, num_days_missing_gap=7,
                       small_seg_len=30, seg_prop=0.6, min_overlap_part_len=0,
                       max_gap_home_des=30, min_home_segment_len=7,
@@ -306,7 +388,7 @@ class TrajRecord():
         ori_xaxis_idx = self.date_num_long.filter_by(month_all_axis_trans, 'date')['date_num']
         ori_xaxis_idx.sort()
         xaxis_idx = np.array(ori_xaxis_idx) + 0.5 - start_day
-
+        month_all_axis = [d[:4] + '-' + d[4:6] + '-' + d[6:8] for d in month_all_axis]
         plt.xticks(xaxis_idx, month_all_axis, fontsize=22, rotation=30)
         plt.yticks(fontsize=25, rotation='horizontal')
         plt.tick_params(axis='both', which='both', bottom='on', top='off',
