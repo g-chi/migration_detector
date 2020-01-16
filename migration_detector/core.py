@@ -77,6 +77,22 @@ class TrajRecord():
         self.date_num_long = date_num_long
 
     def plot_trajectory(self, user_id, start_date, end_date=None, if_save=False, fig_path='figure'):
+        """
+        Plot trajectory of a person.
+
+        Attributes
+        ----------
+        user_id : string
+            user id
+        start_date : str
+            in the format of 'YYYYMMDD'
+        end_date : str
+            in the format of 'YYYYMMDD'
+        if_save : boolean
+            if save the figure
+        fig_path : str
+            the path to save figures
+        """
         start_date_ = int(str(start_date)[:4] + str(start_date)[4:6] + str(start_date)[6:8])
         start_day = self.date_num_long.filter_by(start_date_, 'date')['date_num'][0]
         # if not declare end_date, plot half a year's data
@@ -283,7 +299,8 @@ class TrajRecord():
         return seg_migr_filter
 
     def plot_migration_segment(self, migrant, plot_column='long_seg',
-                               if_save=False, fig_path='figure'):
+                               if_save=False, fig_path='figure',
+                               fig_width=None):
         """
         Plot migrant daily records in a year and highlight the segments.
 
@@ -297,23 +314,26 @@ class TrajRecord():
             if save the figure
         fig_path : str
             the path to save figures
+        fig_width : float
+            the width of the output figure
         """
         user_id = migrant['user_id']
         plot_segment = migrant[plot_column]
         migration_day = migrant['migration_day']
         home_start = int(migrant['home_start'])
         des_end = int(migrant['destination_end'])
-        if des_end - home_start <= 365 - 1:
-            start_day = home_start
-            end_day = home_start + 365 - 1
-        elif des_end - home_start > 365 - 1:
+        # if des_end - home_start <= 365 - 1:
+        start_day = home_start
+        end_day = des_end
+        #     end_day = home_start + 365 - 1
+        if des_end - home_start > 365 - 1:
             if migration_day <= 180:
                 start_day = home_start
                 end_day = home_start + 365 - 1
             else:
                 start_day = migration_day - 180
                 end_day = migration_day + 184
-
+        duration = end_day - start_day + 1
         daily_record = self.raw_traj.filter_by(user_id, 'user_id').filter_by(
             range(start_day, end_day + 1), 'date_num'
         )
@@ -336,7 +356,9 @@ class TrajRecord():
         heatmap_pivot = heatmap_df_join.to_dataframe().pivot("location", "date_num", "date_count")
 
         height = len(appear_loc)
-        fig, ax = plt.subplots(dpi=300, figsize=(28, height))
+        if not fig_width:
+            fig_width = 28. / 365 * duration
+        fig, ax = plt.subplots(dpi=300, figsize=(fig_width, height))
         cmap = sns.cubehelix_palette(dark=0, light=1, as_cmap=True)
 
         sns.heatmap(heatmap_pivot, cmap=cmap, cbar=False, linewidths=1)
@@ -372,7 +394,7 @@ class TrajRecord():
         plt.axvline(migration_day + 0.5 - start_day, color='orange', linewidth=4)
         plt.ylabel('Location', fontsize=22)
         plt.xlabel('Date', fontsize=22)
-        plt.xlim(0, 365)
+        # plt.xlim(0, 365)
 
         start_date = str(self.date_num_long.filter_by(start_day, 'date_num')['date'][0])
         end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
