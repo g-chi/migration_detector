@@ -176,9 +176,7 @@ class TrajRecord():
 
     def find_migrants(self, num_stayed_days_migrant=90, num_days_missing_gap=7,
                       small_seg_len=30, seg_prop=0.6, min_overlap_part_len=0,
-                      max_gap_home_des=30, min_home_segment_len=7,
-                      min_des_segment_len=7, max_des_segment_len=14,
-                      if_output_segment=True):
+                      max_gap_home_des=30):
         """
         Find migrants step by step
 
@@ -196,14 +194,6 @@ class TrajRecord():
             Overlap: 0 days
         max_gap_home_des : int
             Gaps beteen home segment and destination segment
-        min_home_segment_len : int
-            short-term displacement: Home segment length
-        min_des_segment_len : int
-            short-term displacement: Destination segment length
-        max_des_segment_len : int
-            short-term displacement: Destination segment length
-        if_output_segment : boolean
-            whether output detected migrants
         """
         self.user_traj['filled_record'] = self.user_traj['all_record'].apply(
             lambda x: fill_missing_day(x, num_days_missing_gap)
@@ -226,11 +216,11 @@ class TrajRecord():
                 num_stayed_days_migrant
             )
         )
-        # output users with segments of longer than D gap_days_list
-        # if if_output_segment:
-        #     output_segments(self.user_traj, segment_file, self.min_overlap_part_len, self.index2date)
-        # filter out those users with no record or only one location in ['long_seg]
         self.user_traj['long_seg_num'] = self.user_traj['long_seg'].apply(lambda x: len(x))
+        self.user_traj['medium_segment_num'] = self.user_traj['medium_segment'].apply(lambda x: len(x))
+        self.user_traj['segment_over_prop_num'] = self.user_traj['segment_over_prop'].apply(lambda x: len(x))
+
+        # filter out those users with no record or only one location in ['long_seg]
         user_long_seg = self.user_traj.filter_by([0, 1], 'long_seg_num', exclude=True)
         user_long_seg['migration_result'] = user_long_seg['long_seg'].apply(
             lambda x: find_migration_by_segment(x, min_overlap_part_len)
@@ -297,6 +287,57 @@ class TrajRecord():
         seg_migr_filter['uncertainty'] = seg_migr_filter['seg_diff'] - 1
         print('Done')
         return seg_migr_filter
+
+    def output_segments(self, segment_file='segments.csv', which_step=3):
+        """
+        Output segments after step 1, 2, or 3
+        step 1: Identify contiguous segments
+        step 2: Merge segments
+        step 3: Remove overlap
+
+        Attributes
+        ----------
+        segment_file : string
+            File name of the outputed segment
+        which_step : int
+            Output segments in which step
+        """
+        if which_step == 3:
+            user_seg = self.user_traj[self.user_traj['long_seg_num'] > 0]
+            user_seg['seg_selected'] = user_seg['long_seg']
+        elif which_step == 2:
+            user_seg = self.user_traj[self.user_traj['medium_segment_num'] > 0]
+            user_seg['seg_selected'] = user_seg['medium_segment']
+        elif which_step == 1:
+            user_seg = self.user_traj[self.user_traj['segment_over_prop_num'] > 0]
+            user_seg['seg_selected'] = user_seg['segment_over_prop']
+        user_seg_migr = user_seg.stack(
+            'seg_selected',
+            new_column_name=['location', 'migration_list']
+        )
+        user_seg_migr = user_seg_migr.stack(
+            'migration_list',
+            new_column_name='segment'
+        )
+        user_seg_migr['segment_start'] = user_seg_migr['segment'].apply(
+            lambda x: x[0]
+        )
+        user_seg_migr['segment_end'] = user_seg_migr['segment'].apply(
+            lambda x: x[1]
+        )
+        user_seg_migr['segment_start_date'] = user_seg_migr.apply(
+            lambda x: self.index2date[x['segment_start']]
+        )
+        user_seg_migr['segment_end_date'] = user_seg_migr.apply(
+            lambda x: self.index2date[x['segment_end']]
+        )
+        user_seg_migr['segment_length'] = (user_seg_migr['segment_end'] -
+                                           user_seg_migr['segment_start'])
+        user_seg_migr = user_seg_migr.sort(['user_id', 'segment_start_date'], ascending=True)
+        user_seg_migr.select_columns(
+            ['user_id', 'location',
+             'segment_start_date', 'segment_end_date', 'segment_length']
+        ).export_csv(segment_file)
 
     def plot_migration_segment(self, migrant, plot_column='long_seg',
                                if_save=False, fig_path='figure',

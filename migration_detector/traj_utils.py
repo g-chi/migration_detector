@@ -183,47 +183,6 @@ def change_overlap_segment(x, filter_segment_col, k, d):
     return change_result_dict
 
 
-def output_segments(user_loc_agg, segment_file, min_overlap_part_len, index2date):
-    user_loc_agg_tmp = user_loc_agg.copy()
-    user_loc_agg_tmp['long_seg'] = user_loc_agg_tmp.apply(
-        lambda x: change_overlap_segment(
-            x,
-            'medium_segment',
-            min_overlap_part_len,
-            30
-        )
-    )
-    user_loc_agg_tmp['long_seg_num'] = user_loc_agg_tmp['long_seg'].apply(lambda x: len(x))
-    user_seg = user_loc_agg_tmp[user_loc_agg_tmp['long_seg_num'] > 0]
-    user_seg_migr = user_seg.stack(
-        'long_seg',
-        new_column_name=['location', 'migration_list']
-    )
-    user_seg_migr = user_seg_migr.stack(
-        'migration_list',
-        new_column_name='segment'
-    )
-    user_seg_migr['segment_start'] = user_seg_migr['segment'].apply(
-        lambda x: x[0]
-    )
-    user_seg_migr['segment_end'] = user_seg_migr['segment'].apply(
-        lambda x: x[1]
-    )
-    user_seg_migr['segment_start_date'] = user_seg_migr.apply(
-        lambda x: index2date[x['segment_start']]
-    )
-    user_seg_migr['segment_end_date'] = user_seg_migr.apply(
-        lambda x: index2date[x['segment_end']]
-    )
-    user_seg_migr['segment_length'] = (user_seg_migr['segment_end'] -
-                                       user_seg_migr['segment_start'])
-    user_seg_migr.select_columns(
-        ['user_id', 'location',
-         'segment_start', 'segment_end', 'segment_length',
-         'segment_start_date', 'segment_end_date']
-    ).export_csv(segment_file)
-
-
 def find_migration_by_segment(segments, k):
     """
     Filter out migration that the time period of home covers more than k days
