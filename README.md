@@ -23,6 +23,10 @@ import migration_detector as md
 
 traj = md.read_csv('example/migrant_location_history_example1.csv')
 
+# plot trajectory
+traj.plot_trajectory(user_id='1', start_date='20180701')
+
+# detect migration events
 migrants = traj.find_migrants()
 print(migrants)
 
@@ -30,7 +34,10 @@ print(migrants)
 traj.plot_migration_segment(migrants[0])
 
 # save the result of detected migrants
-md.to_csv(migrants, 'migrants_result.csv')
+md.to_csv(migrants, result_path='result', file_name='migration_event.csv')
+
+# save detected segments
+traj.output_segments(segment_file='segments.csv', which_step=3)
 ```
 
 Format of the input trajectory data
