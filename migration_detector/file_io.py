@@ -1,13 +1,13 @@
 import graphlab as gl
 import pandas as pd
 import numpy as np
+import os
 from .core import TrajRecord
 
 
 def read_csv(file_path):
     user_daily_loc_count = gl.SFrame.read_csv(file_path, verbose=False)
     user_daily_loc_count['user_id'] = user_daily_loc_count['user_id'].astype(str)
-
     # Prepare migration record
     # Assign day index to each date
     start_date_ori = str(user_daily_loc_count['date'].min())
@@ -23,8 +23,6 @@ def read_csv(file_path):
     index2date = dict(zip(range(len(all_date_new)), all_date_new))
 
     end_date_long_ori = str(pd.Timestamp(end_date)+pd.Timedelta('200 day'))
-    # end_date_long = '/'.join([end_date_long_ori[5:7], end_date_long_ori[8:10],
-    #                           end_date_long_ori[:4]])
     all_date_long = pd.date_range(start=start_date, end=end_date_long_ori)
     all_date_long_new = [int(str(x)[:4] + str(x)[5:7] + str(x)[8:10])
                          for x in all_date_long]
@@ -44,12 +42,14 @@ def read_csv(file_path):
         ['user_id'],
         {'all_record': gl.aggregate.CONCAT('location', 'all_date')}
     )
-
     traj = TrajRecord(user_loc_agg, migration_df, index2date, date_num_long)
     return traj
 
 
-def to_csv(result, file_path):
+def to_csv(result, result_path='result', file_name='migration_event.csv'):
+    if not os.path.isdir(result_path):
+        os.makedirs(result_path)
+    save_file = os.path.join(result_path, file_name)
     result.select_columns(
         ['user_id', 'home', 'destination', 'migration_date',
          'uncertainty', 'num_error_day',
@@ -57,4 +57,4 @@ def to_csv(result, file_path):
          'destination_start', 'destination_end',
          'home_start_date', 'home_end_date',
          'destination_start_date', 'destination_end_date']
-    ).export_csv(file_path)
+    ).export_csv(save_file)

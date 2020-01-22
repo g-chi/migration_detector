@@ -7,52 +7,11 @@ import copy
 from array import array
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import seaborn as sns
 from traj_utils import *
 
 
 class TrajRecord():
-    """
-    # Find Segment
-    - step 1: Fill the small missing gaps
-              fill_missing_day('all_record', num_days_missing_gap) -> 'filled_record'
-
-    - step 2: Group consecutive days in the same location together into segments
-              and find segments over certain length.
-              find_segment('filled_record',small_seg_len) -> 'segment_dict'
-
-    - step 3: Find segments in which the user appeared more than prop*len(segment)
-              number of days for that segment.
-              filter_seg_appear_prop(x, 'segment_dict',seg_prop)
-              -> 'segment_over_prop'
-
-    - step 4: Merge neighboring segments together if there are no segments
-              in other districts between the neighboring segments.
-              join_segment_if_no_gap('segment_over_prop') -> 'medium_segment'
-
-    - step 5: Remove overlap parts between any segments who have overlapping
-              and keep segments >= num_stayed_days_migrant days.
-              change_overlap_segment(x, 'medium_segment',
-              min_overlap_part_len, num_stayed_days_migrant) -> 'long_seg'
-
-    - step 6: Find migration: home, destination
-              user_loc_agg['long_seg_num'] = user_loc_agg['long_seg'].apply(lambda x: len(x))
-              user_long_seg = user_loc_agg.filter_by([0,1],'long_seg_num',exclude=True)
-              find_migration_by_segment('long_seg',min_overlap_part_len) -> 'migration_result'
-
-    - step 7: Find migration day
-              find_migration_day_segment(x)
-
-    - step 8: Filter migration segment
-              a) The gap between home segment and destination segment <= 31 days.
-              'seg_diff' <= 31  -> seg_migr_filter
-              b) For short-term migration: Restriction on the length of home segment
-              and destination segment.
-              filter_migration_segment_len('migration_list', hmin, hmax, dmin, dmax)
-              -> 'flag_home_des_len' (0 or 1)
-    """
     # Input data: user_id, date(int: YYYYMMDD), location(int)
     # Output data:
     #     user_id, migration_date, home, destination, home_start, home_end,
@@ -76,9 +35,9 @@ class TrajRecord():
         self.index2date = index2date
         self.date_num_long = date_num_long
 
-    def plot_trajectory(self, user_id, start_date, end_date=None, if_save=False, fig_path='figure'):
+    def plot_trajectory(self, user_id, start_date, end_date=None, if_save=True, fig_path='figure'):
         """
-        Plot trajectory of a person.
+        Plot an individual's trajectory.
 
         Attributes
         ----------
@@ -102,83 +61,55 @@ class TrajRecord():
         else:
             end_day = start_day + 182
             end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
-        duration = end_day - start_day + 1
-        month_start = pd.date_range(start=start_date, end=end_date, freq='MS')
-
-        daily_record = self.raw_traj.filter_by(user_id, 'user_id').filter_by(
-            range(start_day, end_day + 1), 'date_num'
-        )
-        daily_record['date_count'] = [1] * len(daily_record)
-        appear_loc = list(set(daily_record['location']))
-        appear_loc.sort()
-        date_plot = range(start_day, end_day + 1)
-        date_plot_sort = date_plot * len(appear_loc)
-        date_plot_sort.sort()
-        template_df_plot = gl.SFrame({'location': appear_loc * len(date_plot),
-                                      'date_num': date_plot_sort})
-        heatmap_df_join = template_df_plot.join(
-            daily_record.select_columns(['location', 'date_count', 'date_num']),
-            on=['date_num', 'location'],
-            how='left'
-        )
-        heatmap_df_join = heatmap_df_join.fillna('date_count', 0)
-        heatmap_pivot = heatmap_df_join.to_dataframe().pivot("location", "date_num", "date_count")
-
-        height = len(appear_loc)
-        fig, ax = plt.subplots(dpi=300, figsize=(28./182*duration, height))
-        cmap = sns.cubehelix_palette(dark=0, light=1, as_cmap=True)
-
-        sns.heatmap(heatmap_pivot, cmap=cmap, cbar=False, linewidths=1)
-
-        for xline in np.arange(duration):
-            plt.axvline(xline, color='lightgray', alpha=0.5)
-        for yline in range(len(appear_loc) + 1):
-            plt.axhline(yline, color='lightgray', alpha=0.5)
-
-        location_appear_df = gl.SFrame({'location': appear_loc})
-        location_appear_df = location_appear_df.sort('location')
-        location_appear_df['y_order'] = range(len(appear_loc))
-        location_y_order_loc_appear = (location_appear_df
-                                       .select_columns(['location', 'y_order'])
-                                       .to_dataframe()
-                                       .set_index('location')
-                                       .to_dict(orient='dict')['y_order'])
-
-        plt.ylabel('Location', fontsize=22)
-        plt.xlabel('Date', fontsize=22)
-
-        month_start_2 = [str(d)[:4] + str(d)[5:7] + str(d)[8:10] for d in month_start]
-        month_mid = [str(int(d) + 14) for d in month_start_2]
-
-        month_all_axis = month_start_2 + month_mid
-        month_all_axis.sort()
-        if month_all_axis[-1] > end_date:
-            month_all_axis = month_all_axis[:-1]
-        month_all_axis_trans = [int(d) for d in month_all_axis]
-
-        ori_xaxis_idx = self.date_num_long.filter_by(month_all_axis_trans, 'date')['date_num']
-        ori_xaxis_idx.sort()
-        xaxis_idx = np.array(ori_xaxis_idx) + 0.5 - start_day
-        month_all_axis = [d[:4] + '-' + d[4:6] + '-' + d[6:8] for d in month_all_axis]
-        plt.xticks(xaxis_idx, month_all_axis, fontsize=22, rotation=30)
-        plt.yticks(fontsize=25, rotation='horizontal')
-        plt.tick_params(axis='both', which='both', bottom='on', top='off',
-                        labelbottom='on', right='off', left='off',
-                        labelleft='on')
-        plt.subplots_adjust(left=0.05, bottom=0.2, right=0.97, top=0.95)
+        fig, ax, _, _ = plot_traj_common(self.raw_traj, user_id, start_day, end_day, self.date_num_long)
         if not os.path.isdir(fig_path):
             os.makedirs(fig_path)
         save_path = os.path.join(fig_path, user_id + '_trajectory')
-        plt.show()
         if if_save:
-            plt.savefig(save_path, bbox_inches="tight")
-        plt.close()
+            fig.savefig(save_path, bbox_inches="tight")
 
     def find_migrants(self, num_stayed_days_migrant=90, num_days_missing_gap=7,
                       small_seg_len=30, seg_prop=0.6, min_overlap_part_len=0,
                       max_gap_home_des=30):
         """
         Find migrants step by step
+
+        - step 1: Fill the small missing gaps
+                  fill_missing_day('all_record', num_days_missing_gap) -> 'filled_record'
+
+        - step 2: Group consecutive days in the same location together into segments
+                  and find segments over certain length.
+                  find_segment('filled_record',small_seg_len) -> 'segment_dict'
+
+        - step 3: Find segments in which the user appeared more than prop*len(segment)
+                  number of days for that segment.
+                  filter_seg_appear_prop(x, 'segment_dict',seg_prop)
+                  -> 'segment_over_prop'
+
+        - step 4: Merge neighboring segments together if there are no segments
+                  in other districts between the neighboring segments.
+                  join_segment_if_no_gap('segment_over_prop') -> 'medium_segment'
+
+        - step 5: Remove overlap parts between any segments who have overlapping
+                  and keep segments >= num_stayed_days_migrant days.
+                  change_overlap_segment(x, 'medium_segment',
+                  min_overlap_part_len, num_stayed_days_migrant) -> 'long_seg'
+
+        - step 6: Find migration: home, destination
+                  user_loc_agg['long_seg_num'] = user_loc_agg['long_seg'].apply(lambda x: len(x))
+                  user_long_seg = user_loc_agg.filter_by([0,1],'long_seg_num',exclude=True)
+                  find_migration_by_segment('long_seg',min_overlap_part_len) -> 'migration_result'
+
+        - step 7: Find migration day
+                  find_migration_day_segment(x)
+
+        - step 8: Filter migration segment
+                  a) The gap between home segment and destination segment <= 31 days.
+                  'seg_diff' <= 31  -> seg_migr_filter
+                  b) For short-term migration: Restriction on the length of home segment
+                  and destination segment.
+                  filter_migration_segment_len('migration_list', hmin, hmax, dmin, dmax)
+                  -> 'flag_home_des_len' (0 or 1)
 
         Attributes
         ----------
@@ -288,7 +219,7 @@ class TrajRecord():
         print('Done')
         return seg_migr_filter
 
-    def output_segments(self, segment_file='segments.csv', which_step=3):
+    def output_segments(self, result_path='result', segment_file='segments.csv', which_step=3):
         """
         Output segments after step 1, 2, or 3
         step 1: Identify contiguous segments
@@ -334,14 +265,16 @@ class TrajRecord():
         user_seg_migr['segment_length'] = (user_seg_migr['segment_end'] -
                                            user_seg_migr['segment_start'])
         user_seg_migr = user_seg_migr.sort(['user_id', 'segment_start_date'], ascending=True)
+        if not os.path.isdir(result_path):
+            os.makedirs(result_path)
+        save_file = os.path.join(result_path, segment_file)
         user_seg_migr.select_columns(
             ['user_id', 'location',
              'segment_start_date', 'segment_end_date', 'segment_length']
-        ).export_csv(segment_file)
+        ).export_csv(save_file)
 
     def plot_migration_segment(self, migrant, plot_column='long_seg',
-                               if_save=False, fig_path='figure',
-                               fig_width=None):
+                               if_save=True, fig_path='figure'):
         """
         Plot migrant daily records in a year and highlight the segments.
 
@@ -355,18 +288,15 @@ class TrajRecord():
             if save the figure
         fig_path : str
             the path to save figures
-        fig_width : float
-            the width of the output figure
         """
         user_id = migrant['user_id']
         plot_segment = migrant[plot_column]
         migration_day = migrant['migration_day']
         home_start = int(migrant['home_start'])
         des_end = int(migrant['destination_end'])
-        # if des_end - home_start <= 365 - 1:
         start_day = home_start
         end_day = des_end
-        #     end_day = home_start + 365 - 1
+        # only plot one year's trajectory if the des_end - home_start is longer than one year
         if des_end - home_start > 365 - 1:
             if migration_day <= 180:
                 start_day = home_start
@@ -375,49 +305,7 @@ class TrajRecord():
                 start_day = migration_day - 180
                 end_day = migration_day + 184
         duration = end_day - start_day + 1
-        daily_record = self.raw_traj.filter_by(user_id, 'user_id').filter_by(
-            range(start_day, end_day + 1), 'date_num'
-        )
-        daily_record['date_count'] = [1] * len(daily_record)
-        appear_loc = list(set(daily_record['location']))
-        appear_loc.sort()
-        # plot_template
-        date_plot = range(start_day, end_day + 1)
-        date_plot_sort = date_plot * len(appear_loc)
-        date_plot_sort.sort()
-        template_df_plot = gl.SFrame({'location': appear_loc * len(date_plot),
-                                      'date_num': date_plot_sort})
-
-        heatmap_df_join = template_df_plot.join(
-            daily_record.select_columns(['location', 'date_count', 'date_num']),
-            on=['date_num', 'location'],
-            how='left'
-        )
-        heatmap_df_join = heatmap_df_join.fillna('date_count', 0)
-        heatmap_pivot = heatmap_df_join.to_dataframe().pivot("location", "date_num", "date_count")
-
-        height = len(appear_loc)
-        if not fig_width:
-            fig_width = 28. / 365 * duration
-        fig, ax = plt.subplots(dpi=300, figsize=(fig_width, height))
-        cmap = sns.cubehelix_palette(dark=0, light=1, as_cmap=True)
-
-        sns.heatmap(heatmap_pivot, cmap=cmap, cbar=False, linewidths=1)
-
-        for xline in np.arange(365):
-            plt.axvline(xline, color='lightgray', alpha=0.5)
-        for yline in range(len(appear_loc) + 1):
-            plt.axhline(yline, color='lightgray', alpha=0.5)
-
-        location_appear_df = gl.SFrame({'location': appear_loc})
-        location_appear_df = location_appear_df.sort('location')
-        location_appear_df['y_order'] = range(len(appear_loc))
-        location_y_order_loc_appear = (location_appear_df
-                                       .select_columns(['location', 'y_order'])
-                                       .to_dataframe()
-                                       .set_index('location')
-                                       .to_dict(orient='dict')['y_order'])
-
+        fig, ax, location_y_order_loc_appear, appear_loc = plot_traj_common(self.raw_traj, user_id, start_day, end_day, self.date_num_long)
         plot_appear_segment = {k: v for k, v in plot_segment.items() if k in appear_loc}
         for location, value in plot_appear_segment.items():
             y_min = location_y_order_loc_appear[location]
@@ -431,37 +319,9 @@ class TrajRecord():
                                       edgecolor='red',
                                       facecolor='none')
                 )
-
-        plt.axvline(migration_day + 0.5 - start_day, color='orange', linewidth=4)
-        plt.ylabel('Location', fontsize=22)
-        plt.xlabel('Date', fontsize=22)
-        # plt.xlim(0, 365)
-
-        start_date = str(self.date_num_long.filter_by(start_day, 'date_num')['date'][0])
-        end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
-        month_start = pd.date_range(start=start_date, end=end_date, freq='MS')
-
-        month_start_2 = [str(d)[:4] + str(d)[5:7] + str(d)[8:10] for d in month_start]
-        month_mid = [str(int(d) + 14) for d in month_start_2]
-
-        month_all_axis = month_start_2 + month_mid
-        month_all_axis.sort()
-        month_all_axis_trans = [int(d) for d in month_all_axis]
-
-        ori_xaxis_idx = self.date_num_long.filter_by(month_all_axis_trans, 'date')['date_num']
-        ori_xaxis_idx.sort()
-        xaxis_idx = np.array(ori_xaxis_idx) + 0.5 - start_day
-        month_all_axis = [d[:4] + '-' + d[4:6] + '-' + d[6:8] for d in month_all_axis]
-        plt.xticks(xaxis_idx, month_all_axis, fontsize=22, rotation=30)
-        plt.yticks(fontsize=25, rotation='horizontal')
-        plt.tick_params(axis='both', which='both', bottom='on', top='off',
-                        labelbottom='on', right='off', left='off',
-                        labelleft='on')
-        plt.subplots_adjust(left=0.05, bottom=0.2, right=0.97, top=0.95)
+        ax.axvline(migration_day + 0.5 - start_day, color='orange', linewidth=4)
         if not os.path.isdir(fig_path):
             os.makedirs(fig_path)
-        save_path = os.path.join(fig_path, user_id + '_' + str(migration_day))
-        plt.show()
+        save_file = os.path.join(fig_path, user_id + '_' + str(migration_day))
         if if_save:
-            plt.savefig(save_path, bbox_inches="tight")
-        plt.close()
+            fig.savefig(save_file, bbox_inches="tight")
