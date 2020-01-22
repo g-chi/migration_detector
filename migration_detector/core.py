@@ -35,7 +35,7 @@ class TrajRecord():
         self.index2date = index2date
         self.date_num_long = date_num_long
 
-    def plot_trajectory(self, user_id, start_date, end_date=None, if_save=True, fig_path='figure'):
+    def plot_trajectory(self, user_id, start_date=None, end_date=None, if_save=True, fig_path='figure'):
         """
         Plot an individual's trajectory.
 
@@ -44,27 +44,32 @@ class TrajRecord():
         user_id : string
             user id
         start_date : str
-            in the format of 'YYYYMMDD'
+            start date of the figure in the format of 'YYYYMMDD'
         end_date : str
-            in the format of 'YYYYMMDD'
+            end date of the figure in the format of 'YYYYMMDD'
         if_save : boolean
             if save the figure
         fig_path : str
             the path to save figures
         """
-        start_date_ = int(str(start_date)[:4] + str(start_date)[4:6] + str(start_date)[6:8])
-        start_day = self.date_num_long.filter_by(start_date_, 'date')['date_num'][0]
-        # if not declare end_date, plot half a year's data
-        if end_date:
-            end_date_ = int(str(end_date)[:4] + str(end_date)[4:6] + str(end_date)[6:8])
-            end_day = self.date_num_long.filter_by(end_date_, 'date')['date_num'][0]
+        date_min = self.raw_traj.filter_by(user_id, 'user_id')['date'].min()
+        date_max = self.raw_traj.filter_by(user_id, 'user_id')['date'].max()
+        if start_date:
+            assert int(start_date) >= date_min, "start date must be later than the first day of this user's records, which is " + str(date_min)
+            start_day = self.date_num_long.filter_by(int(start_date), 'date')['date_num'][0]
         else:
-            end_day = start_day + 182
+            start_day = self.date_num_long.filter_by(date_min, 'date')['date_num'][0]
+            start_date = str(self.date_num_long.filter_by(start_day, 'date_num')['date'][0])
+        if end_date:
+            assert int(end_date) <= date_max, "end date must be earlier than the last day of this user's records, which is " + str(date_max)
+            end_day = self.date_num_long.filter_by(int(end_date), 'date')['date_num'][0]
+        else:
+            end_day = self.date_num_long.filter_by(date_max, 'date')['date_num'][0]
             end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
         fig, ax, _, _ = plot_traj_common(self.raw_traj, user_id, start_day, end_day, self.date_num_long)
         if not os.path.isdir(fig_path):
             os.makedirs(fig_path)
-        save_path = os.path.join(fig_path, user_id + '_trajectory')
+        save_path = os.path.join(fig_path, user_id  + '_' + start_date + '-' + end_date + '_trajectory')
         if if_save:
             fig.savefig(save_path, bbox_inches="tight")
 
@@ -273,37 +278,72 @@ class TrajRecord():
              'segment_start_date', 'segment_end_date', 'segment_length']
         ).export_csv(save_file)
 
-    def plot_migration_segment(self, migrant, plot_column='long_seg',
-                               if_save=True, fig_path='figure'):
+    def plot_segment(self, user_result, if_migration=False,
+                     start_date=None, end_date=None,
+                     segment_which_step=3,
+                     if_save=True, fig_path='figure'):
         """
         Plot migrant daily records in a year and highlight the segments.
 
         Attributes
         ----------
-        migrant : gl.sArray
-            one row of a migrant with all the attributes
-        plot_column : str
-            long_seg
+        user_result : dict
+            a user with all the attributes
+        if_migration : boolean
+            if this record contains a migration event.
+            if so, a migration date line will be added
+        start_date : str
+            start date of the figure in the format of 'YYYYMMDD'
+        end_date : str
+            end date of the figure in the format of 'YYYYMMDD'
+        segment_which_step : int
+            1: 'segment_over_prop'
+            2: 'medium_segment'
+            3: 'long_seg'
         if_save : boolean
             if save the figure
         fig_path : str
             the path to save figures
         """
-        user_id = migrant['user_id']
-        plot_segment = migrant[plot_column]
-        migration_day = migrant['migration_day']
-        home_start = int(migrant['home_start'])
-        des_end = int(migrant['destination_end'])
-        start_day = home_start
-        end_day = des_end
-        # only plot one year's trajectory if the des_end - home_start is longer than one year
-        if des_end - home_start > 365 - 1:
-            if migration_day <= 180:
-                start_day = home_start
-                end_day = home_start + 365 - 1
+        segment_which_step_dict = {
+            1: 'segment_over_prop',
+            2: 'medium_segment',
+            3: 'long_seg'
+        }
+        user_id = user_result['user_id']
+        plot_segment = user_result[segment_which_step_dict[segment_which_step]]
+        if if_migration:
+            migration_day = user_result['migration_day']
+            home_start = int(user_result['home_start'])
+            des_end = int(user_result['destination_end'])
+            start_day = home_start
+            end_day = des_end
+            # only plot one year's trajectory if the des_end - home_start is longer than one year
+            if end_day - start_day > 365 - 1:
+                if migration_day <= 180:
+                    start_day = home_start
+                    end_day = home_start + 365 - 1
+                else:
+                    start_day = migration_day - 180
+                    end_day = migration_day + 184
+            start_date = str(self.date_num_long.filter_by(start_day, 'date_num')['date'][0])
+            end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
+        else:
+            date_min = self.raw_traj.filter_by(user_id, 'user_id')['date'].min()
+            date_max = self.raw_traj.filter_by(user_id, 'user_id')['date'].max()
+            if start_date:
+                assert int(start_date) >= date_min, "start date must be later than the first day of this user's records, which is " + str(date_min)
+                start_day = self.date_num_long.filter_by(int(start_date), 'date')['date_num'][0]
             else:
-                start_day = migration_day - 180
-                end_day = migration_day + 184
+                start_day = self.date_num_long.filter_by(date_min, 'date')['date_num'][0]
+                start_date = str(self.date_num_long.filter_by(start_day, 'date_num')['date'][0])
+            if end_date:
+                assert int(end_date) <= date_max, "end date must be earlier than the last day of this user's records, which is " + str(date_max)
+                end_day = self.date_num_long.filter_by(int(end_date), 'date')['date_num'][0]
+            else:
+                end_day = self.date_num_long.filter_by(date_max, 'date')['date_num'][0]
+                end_date = str(self.date_num_long.filter_by(end_day, 'date_num')['date'][0])
+
         duration = end_day - start_day + 1
         fig, ax, location_y_order_loc_appear, appear_loc = plot_traj_common(self.raw_traj, user_id, start_day, end_day, self.date_num_long)
         plot_appear_segment = {k: v for k, v in plot_segment.items() if k in appear_loc}
@@ -319,9 +359,10 @@ class TrajRecord():
                                       edgecolor='red',
                                       facecolor='none')
                 )
-        ax.axvline(migration_day + 0.5 - start_day, color='orange', linewidth=4)
+        if if_migration:
+            ax.axvline(migration_day + 0.5 - start_day, color='orange', linewidth=4)
         if not os.path.isdir(fig_path):
             os.makedirs(fig_path)
-        save_file = os.path.join(fig_path, user_id + '_' + str(migration_day))
+        save_file = os.path.join(fig_path, user_id + '_' + start_date + '-' + end_date + '_segment')
         if if_save:
             fig.savefig(save_file, bbox_inches="tight")
