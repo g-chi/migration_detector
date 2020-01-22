@@ -17,7 +17,7 @@ How to install it
 
 How to use it
 ------
-migrantion_detector is easy to use, just like pandas. First, you need to import your trajectory dataset and then detect the migrants.
+migrantion_detector is easy to use, just like pandas. First, you need to import your trajectory dataset and then detect the migrants. See [demo.ipynb](https://github.com/g-chi/migration_detector/blob/master/demo.ipynb) to learn how to use this package.
 ```
 import migration_detector as md
 
@@ -31,10 +31,15 @@ migrants = traj.find_migrants()
 print(migrants)
 
 # plot a migrant's trajectory
-traj.plot_migration_segment(migrants[0])
+traj.plot_segment(migrants[0], if_migration=True)
 
 # save the result of detected migrants
 md.to_csv(migrants, result_path='result', file_name='migration_event.csv')
+
+# plot segments detected in the first step
+user_id = '1'
+user_result = traj.user_traj.filter_by(user_id, 'user_id')[0]
+traj.plot_segment(user_result, if_migration=False, segment_which_step=1)
 
 # save detected segments
 traj.output_segments(segment_file='segments.csv', which_step=3)
