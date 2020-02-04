@@ -179,6 +179,7 @@ def change_overlap_segment(x, filter_segment_col, k, d):
                     current_segment_date = current_segment_date - seg_intersect
             current_loc_changed_date += list(current_segment_date)
         if len(current_loc_changed_date) > 0:
+	    current_loc_changed_date.sort()
             remove_overlap_date_dict[location] = current_loc_changed_date
 
     change_result_dict = find_segment(remove_overlap_date_dict, d)
